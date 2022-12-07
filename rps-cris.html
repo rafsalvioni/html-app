@@ -1,0 +1,364 @@
+<html>
+<body>
+<script type="text/javascript">
+Number.prototype.round = function(s=0)
+{
+    return Number(this.toFixed(s));
+}
+    
+Number.prototype.trunc = function(s=0)
+{
+    let d = Math.pow(10, s);
+    let n = this * d;
+    n = parseInt(n);
+    return (n / d).round(s);
+}
+Number.fromMoney = function(valor, neg=false)
+{
+    valor = valor.replace('.', '');
+    valor = valor.replace(',', '.');
+    valor = Number(valor);
+    if (neg && valor > 0.0) valor *= -1;
+    return valor;
+}
+Date.hoje = function()
+{
+    let dt = new Date();
+    let res = String(dt.getFullYear()) + String(dt.getMonth() + 1).padStart(2,'0') + String(dt.getDate()).padStart(2,'0');
+    return res;
+}
+
+function fixedRecord(def, rec)
+{
+    let res = '';
+    for (let prop in def) {
+        let d = def[prop];
+        let val = rec[prop] ?? '';
+        
+        if (!(prop in rec)) {
+            if ('default' in d) {
+                val = d.default;
+            }
+            else if (d.required) {
+                throw `"${prop}" nao foi informado`;
+            }
+        }
+        
+        let pad  = ' ';
+        let left = false;
+        let pow  = 0;
+        switch (d.type) {
+            case 'F':
+                pow = 2;
+            case 'N':
+                pad  = '0';
+                left = true;
+                val  = parseInt(Number(val).round(pow) * Math.pow(10, pow));
+                break;
+            default:
+                val = String(val).replaceAll(/(\r\n|\r|\n)/g, "|");
+        }
+        val = String(val);
+        if ('size' in d && d.size > 0) {
+            if (val.length > d.size) {
+                throw `Valor de "${prop}" excedeu o tamanho`;
+            }
+            val = left ? val.padStart(d.size, pad) : val.padEnd(d.size, pad);
+            
+        }
+        res += val;
+    }
+    res += "\r\n";
+    return res;
+}
+
+const DEF_HEADER = {
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 1, // Tipo Cabecalho
+        'required': true
+    },
+    'versao': {
+        'type': 'N',
+        'size': 3,
+        'default': 1, // Versao 1.0
+        'required': true
+    },
+    'ccm': {
+        'type': 'N',
+        'size': 8,
+        'required': true
+    },
+    'dtinicio': {
+        'type': 'N',
+        'size': 8,
+        'required': true
+    },
+    'dtfim': {
+        'type': 'N',
+        'size': 8,
+        'required': true
+    },
+};
+
+const DEF_RPS = {
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 2, // Tipo Detalhe NF sem intermediario
+        'required': true
+    },
+    'tipo': {
+        'type': 'S',
+        'size': 5,
+        'default': 'RPS', // RPS, RPS-M
+        'required': true
+    },
+    'serie': {
+        'type': 'S',
+        'size': 5,
+    },
+    'numero': {
+        'type': 'N',
+        'size': 12,
+        'required': true
+    },
+    'dtemissao': {
+        'type': 'N',
+        'size': 8,
+        'required': true
+    },
+    'situacao': {
+        'type': 'S',
+        'size': 1,
+        'default': 'T', // Operacao normal
+        'required': true
+    },
+    'valor': {
+        'type': 'F',
+        'size': 15,
+        'required': true
+    },
+    'deducoes': {
+        'type': 'F',
+        'size': 15,
+        'default': 0,
+        'required': true
+    },
+    'codservico': {
+        'type': 'N',
+        'size': 5,
+        'required': true
+    },
+    'aliquota': {
+        'type': 'N',
+        'size': 4,
+        'default': 0, // Ignorado qdo situacao = T
+        'required': true
+    },
+    'issretido': {
+        'type': 'N',
+        'size': 1,
+        'default': 2, // ISS nao retido
+        'required': true
+    },
+    'indcpfcnpj': { // 1- CPF, 2- CNPJ
+        'type': 'N',
+        'size': 1,
+        'required': true
+    },
+    'cpfcnpj': {
+        'type': 'N',
+        'size': 14,
+        'required': true
+    },
+    'ccm_tomador': {
+        'type': 'N',
+        'size': 8
+    },
+    'ie_tomador': {
+        'type': 'N',
+        'size': 12
+    },
+    'nome_tomador': {
+        'type': 'S',
+        'size': 75
+    },
+    'tpend_tomador': {
+        'type': 'S',
+        'size': 3
+    },
+    'endereco_tomador': {
+        'type': 'S',
+        'size': 50
+    },
+    'numero_endereco_tomador': {
+        'type': 'S',
+        'size': 10
+    },
+    'compl_endereco_tomador': {
+        'type': 'S',
+        'size': 30
+    },
+    'bairro_tomador': {
+        'type': 'S',
+        'size': 30
+    },
+    'cidade_tomador': {
+        'type': 'S',
+        'size': 50
+    },
+    'uf_tomador': {
+        'type': 'S',
+        'size': 2
+    },
+    'cep_tomador': {
+        'type': 'N',
+        'size': 8
+    },
+    'email_tomador': {
+        'type': 'S',
+        'size': 75
+    },
+    'descricao': {
+        'type': 'S',
+        'size': -1,
+        'required': true
+    },
+};
+
+const DEF_FOOTER = {
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 9, // Tipo Rodape
+        'required': true
+    },
+    'nrlinhas': {
+        'type': 'N',
+        'size': 7,
+        'required': true
+    },
+    'valor_total': {
+        'type': 'F',
+        'size': 15,
+        'required': true
+    },
+    'valor_deducoes': {
+        'type': 'F',
+        'size': 15,
+        'required': true
+    },
+};
+
+const CCM = 69307342;
+const COD_SERVICO = 4626;
+const HOJE = Date.hoje();
+var NUMERO;
+
+function geraRPS(input)
+{
+    NUMERO = prompt('Informe o numero do ultimo RPS / NF gerado:', NUMERO);
+    if (!/^\d+$/.test(NUMERO)) {
+        throw 'Numero invalido';
+    }
+    NUMERO = parseInt(NUMERO);
+    let linhas = input.split(/\r?\n/);
+    //console.log(linhas);
+
+    let output = [];
+    let header = {
+        ccm: CCM,
+        dtinicio: HOJE,
+        dtfim: HOJE
+    };
+    console.log(header);
+    let footer = {
+        nrlinhas: 0,
+        valor_total: 0,
+        valor_deducoes: 0
+    };
+    
+    for (let i = 0; i < linhas.length; i++) {
+        let rps = {
+            numero: ++NUMERO,
+            dtemissao: HOJE,
+            codservico: COD_SERVICO
+        };
+        let campos = linhas[i].split(/\t/);
+        if (campos[12]) {
+            campos[12] = campos[12].replaceAll(/[^\d]/g, '');
+            rps.indcpfcnpj = campos[12].length > 11 ? 2 : 1;
+            rps.cpfcnpj = campos[12];
+            rps.nome_tomador = (!!campos[13] ? campos[13] : campos[1]).replaceAll(/ {2,}/g, ' ').trim();
+        }
+        else {
+            throw `CPF/CNPJ nao encontrado (Linha ${i + 1})`;
+        }
+        if (campos[11] && campos[11].match(/^(\d+\.?)+(,\d{2})?$/)) {
+            rps.valor = Number.fromMoney(campos[11]);
+            footer.valor_total += rps.valor;
+        }
+        else {
+            throw `Valor cobrado invalido ou nao encontrado (Linha ${i + 1})`;
+        }
+        if (rps.indcpfcnpj == 1) {
+            rps.descricao = `Avaliacao nutricional realizada em ${campos[0] ?? '??'}`;
+        }
+        else {
+            rps.descricao = 'Prestacao de servico em nutricao domiciliar';
+        }
+                
+        try {
+            console.log(rps);
+            output.push(fixedRecord(DEF_RPS, rps));
+            footer.nrlinhas++;
+        } catch (e) {
+            throw `${e} (Linha ${i + 1})`;
+        }
+    };
+    output.unshift(fixedRecord(DEF_HEADER, header));
+    output.push(fixedRecord(DEF_FOOTER, footer));
+    console.log(footer);
+    return output.join('');
+}
+
+function processa()
+{
+    let input = document.getElementById('input').value;
+    let ret;
+    try {
+        ret = geraRPS(input);
+    } catch (e) {
+        ret = `ERRO: ${e}`;
+    }
+    document.getElementById('output').value = ret;
+}
+
+function download()
+{
+    let content = document.getElementById('output').value;
+    if (!/^1/.test(content)) {
+        alert('Conteudo invalido para download');
+        return;
+    }
+    const url = 'data:text/plain;base64,' + btoa(content);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    // the filename you want
+    a.download = `rps_${HOJE}.txt`;
+    document.body.appendChild(a);
+    a.click();
+}
+</script>
+<label>Cole as informacoes da planilha:
+<textarea rows="10" style="width:100%" id="input" onchange="processa()"></textarea></label>
+<button onclick="processa()">Refazer</button>
+<br><br>
+<label>RPS:
+<textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
+<button onclick="download()">Download</button>
+</body>
+</html>
