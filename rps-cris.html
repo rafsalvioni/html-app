@@ -261,6 +261,7 @@ function geraRPS(input)
 {
     NUMERO = prompt('Informe o numero do ultimo RPS / NF gerado:', NUMERO);
     if (!/^\d+$/.test(NUMERO)) {
+        NUMERO = '';
         throw 'Numero invalido';
     }
     NUMERO = parseInt(NUMERO);
@@ -282,7 +283,6 @@ function geraRPS(input)
     
     for (let i = 0; i < linhas.length; i++) {
         let rps = {
-            numero: ++NUMERO,
             dtemissao: HOJE,
             codservico: COD_SERVICO
         };
@@ -309,11 +309,12 @@ function geraRPS(input)
         else {
             rps.descricao = 'Prestacao de servico em nutricao domiciliar';
         }
-                
+
         try {
-            console.log(rps);
+            rps.numero = ++NUMERO;
             output.push(fixedRecord(DEF_RPS, rps));
             footer.nrlinhas++;
+            console.log(rps);
         } catch (e) {
             throw `${e} (Linha ${i + 1})`;
         }
