@@ -265,7 +265,7 @@ function geraRPS(input)
         throw 'Numero invalido';
     }
     NUMERO = parseInt(NUMERO);
-    let linhas = input.split(/\r?\n/);
+    let linhas = input.trim().split(/\r?\n/);
     //console.log(linhas);
 
     let output = [];
@@ -284,7 +284,8 @@ function geraRPS(input)
     for (let i = 0; i < linhas.length; i++) {
         let rps = {
             dtemissao: HOJE,
-            codservico: COD_SERVICO
+            codservico: COD_SERVICO,
+            numero: ++NUMERO
         };
         let campos = linhas[i].split(/\t/);
         if (campos[12]) {
@@ -311,7 +312,6 @@ function geraRPS(input)
         }
 
         try {
-            rps.numero = ++NUMERO;
             output.push(fixedRecord(DEF_RPS, rps));
             footer.nrlinhas++;
             console.log(rps);
@@ -332,6 +332,7 @@ function processa()
     try {
         ret = geraRPS(input);
     } catch (e) {
+        NUMERO = '';
         ret = `ERRO: ${e}`;
     }
     document.getElementById('output').value = ret;
