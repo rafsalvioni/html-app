@@ -280,7 +280,7 @@ function geraRPS(input)
             codservico: COD_SERVICO,
             numero: ++NUMERO
         };
-        let campos = linhas[i].split(/ *\t */);
+        let campos = linhas[i].trim().split(/ *\t */);
         if (campos[12]) {
             campos[12] = campos[12].replaceAll(/[^\d]/g, '');
             rps.indcpfcnpj = Number(campos[12].length > 11) + 1;
