@@ -6,13 +6,6 @@ Number.prototype.round = function(s=0)
     return Number(this.toFixed(s));
 }
     
-Number.prototype.trunc = function(s=0)
-{
-    let d = Math.pow(10, s);
-    let n = this * d;
-    n = parseInt(n);
-    return (n / d).round(s);
-}
 Number.fromMoney = function(valor, neg=false)
 {
     valor = valor.replace('.', '');
@@ -287,12 +280,12 @@ function geraRPS(input)
             codservico: COD_SERVICO,
             numero: ++NUMERO
         };
-        let campos = linhas[i].split(/\t/);
+        let campos = linhas[i].split(/ *\t */);
         if (campos[12]) {
             campos[12] = campos[12].replaceAll(/[^\d]/g, '');
-            rps.indcpfcnpj = campos[12].length > 11 ? 2 : 1;
+            rps.indcpfcnpj = Number(campos[12].length > 11) + 1;
             rps.cpfcnpj = campos[12];
-            rps.nome_tomador = (!!campos[13] ? campos[13] : campos[1]).replaceAll(/ {2,}/g, ' ').trim();
+            rps.nome_tomador = (!!campos[13] ? campos[13] : campos[1]).replaceAll(/ {2,}/g, ' ');
         }
         else {
             throw `CPF/CNPJ nao encontrado (Linha ${i + 1})`;
@@ -329,10 +322,11 @@ function processa()
 {
     let input = document.getElementById('input').value;
     let ret;
+    let num = NUMERO;
     try {
         ret = geraRPS(input);
     } catch (e) {
-        NUMERO = '';
+        NUMERO = num;
         ret = `ERRO: ${e}`;
     }
     document.getElementById('output').value = ret;
@@ -349,9 +343,7 @@ function download()
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    // the filename you want
     a.download = `rps_${HOJE}.txt`;
-    document.body.appendChild(a);
     a.click();
 }
 </script>
