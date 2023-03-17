@@ -1,0 +1,51 @@
+<html>
+<body>
+<script type="text/javascript">
+Number.prototype.round = function(s=0)
+{
+    return Number(this.toFixed(s));
+}
+    
+Number.fromMoney = function(valor, neg=false)
+{
+    valor = valor.replace('.', '');
+    valor = valor.replace(',', '.');
+    valor = Number(valor);
+    if (neg && valor > 0.0) valor *= -1;
+    return valor;
+}
+
+function processa() {
+    var total = Number.fromMoney(prompt('Informe o total:','0,00'));
+    var qtde  = parseInt(Number.fromMoney(prompt('Informe a qtde de parcelas:','0')));
+    var acumular = !!confirm('Acumular diferença em 1 parcela?');
+    
+    total = total.round(2);
+    total *= 100.0;
+    var mod = (total % qtde) / 100;
+    total = (total / 100.0) - mod;
+    var parc = (total / qtde).round(2);
+    
+    var res = "";
+    for (let i = 0; i < qtde; i++) {
+        if (acumular && i == 0) {
+            res += String(parc + mod) + "\n";
+            mod = 0.0;
+        }
+        else if (mod > 0.0) {
+            res += String(parc + .01) + "\n";
+            mod -= .01;
+        }
+        else {
+            res += String(parc) + "\n";
+        }
+    }
+    document.getElementById('output').value = res;
+}
+</script>
+<button onclick="processa()">Calcular Parcelamento</button>
+<br><br>
+<label>Resultado:
+<textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
+</body>
+</html>
