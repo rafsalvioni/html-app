@@ -18,27 +18,30 @@ Number.fromMoney = function(valor, neg=false)
 function processa() {
     var total = Number.fromMoney(prompt('Informe o total:','0,00'));
     var qtde  = parseInt(Number.fromMoney(prompt('Informe a qtde de parcelas:','0')));
+    if (isNaN(total) || isNaN(qtde)) {
+        alert('ERRO: Valor nao numerico');
+        return;
+    }
     var acumular = !!confirm('Acumular diferença em 1 parcela?');
     
     total = total.round(2);
     total *= 100.0;
-    var mod = (total % qtde) / 100;
-    total = (total / 100.0) - mod;
-    var parc = (total / qtde).round(2);
+    var mod = ((total % qtde) / 100);
+    total = ((total / 100.0) - mod);
+    var parc = (total / qtde);
     
     var res = "";
     for (let i = 0; i < qtde; i++) {
+        let p = parc;
         if (acumular && i == 0) {
-            res += String(parc + mod) + "\n";
+            p += mod;
             mod = 0.0;
         }
         else if (mod > 0.0) {
-            res += String(parc + .01) + "\n";
+            p += .01;
             mod -= .01;
         }
-        else {
-            res += String(parc) + "\n";
-        }
+        res += p.toFixed(2) + "\n";
     }
     document.getElementById('output').value = res;
 }
