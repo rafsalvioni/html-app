@@ -6,20 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 </head>
 <body>
+<script type="text/javascript" src="js/proto.js"></script>
+<script type="text/javascript" src="js/flat.js"></script>
+<script type="text/javascript" src="js/validador.js"></script>
 <script type="text/javascript">
-Number.prototype.round = function(s=0)
-{
-    return Number(this.toFixed(s));
-}
-    
-Number.fromMoney = function(valor, neg=false)
-{
-    valor = valor.replace('.', '');
-    valor = valor.replace(',', '.');
-    valor = Number(valor);
-    if (neg && valor > 0.0) valor *= -1;
-    return valor;
-}
 Date.prototype.toDateBanco = function()
 {
     let res = String(this.getDate()).padStart(2,'0') + String(this.getMonth() + 1).padStart(2,'0') + String(this.getFullYear());
@@ -31,55 +21,12 @@ Date.prototype.toTimeBanco = function()
     return res.substring(0, 8).replaceAll(':', '');
 }
 
-function fixedRecord(def, rec)
-{
-    let res = '';
-    for (let prop in def) {
-        let d = def[prop];
-        let val = rec[prop] ?? '';
-        
-        if (!(prop in rec)) {
-            if ('default' in d) {
-                val = d.default;
-            }
-            else if (d.required) {
-                throw `"${prop}" nao foi informado`;
-            }
-        }
-        
-        let pad  = ' ';
-        let left = false;
-        let pow  = 0;
-        switch (d.type) {
-            case 'F':
-                pow = 2;
-            case 'N':
-                pad  = '0';
-                left = true;
-                if (/[^\d]/.test(val)) {
-                    throw `"${prop}" deve ter somente numeros`;
-                }
-                val = parseInt(Math.round(val, pow) * Math.pow(10, pow));
-                break;
-            default:
-                val = String(val).replaceAll(/(\r\n|\r|\n)/g, "|");
-        }
-        val = String(val);
-        if ('size' in d && d.size > 0) {
-            val = val.substring(0, d.size);
-            val = left ? val.padStart(d.size, pad) : val.padEnd(d.size, pad);
-        }
-        res += val;
-    }
-    res += "\r\n";
-    return res;
-}
-
 //https://cms.santander.com.br/sites/WPS/documentos/arq-layout-pagamento-fornecedores-mai22/23-03-07_150124_pagamento_a_fornecedores_layout_cnab_240_v11.3.2_newpt.pdf
 const HOJE = (new Date()).toDateBanco();
 const HORA = (new Date()).toTimeBanco();
 const CNPJ = '32957361000117';
 const RAZAO_SOCIAL = 'NEUROVITALI ATENDIMENTO ESPECIALIZADO EM NEUROLOGIA LTDA';
+const BANCO = 33;
 const AGENCIA = '3919';
 const CONTA_CORRENTE = '13006028';
 const DV_CONTA_CORRENTE = '4';
@@ -90,7 +37,7 @@ const DATAPAGTO = (function(){
         if (hoje.getMonth() == 11) {
             hoje.setFullYear(hoje.getFullYear() + 1);
         }
-        hoje.setMonth(hoje.getMonth() + 1);
+        hoje.setMonth((hoje.getMonth() + 1) % 12);
     }
     hoje.setDate(20);
     return hoje.toDateBanco();
@@ -100,7 +47,7 @@ const DEF_HEADER_ARQUIVO = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33 // Santander
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -156,6 +103,7 @@ const DEF_HEADER_ARQUIVO = {
     'nomeemp': {
         'type': 'S',
         'size': 30,
+        'cut': true,
         'default': RAZAO_SOCIAL
     },
     'nomebanco': {
@@ -209,7 +157,7 @@ const DEF_HEADER_LOTE = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -285,6 +233,7 @@ const DEF_HEADER_LOTE = {
     'nomeemp': {
         'type': 'S',
         'size': 30,
+        'cut': true,
         'default': RAZAO_SOCIAL
     },
     'info1': {
@@ -324,7 +273,7 @@ const DEF_DET_SEG_A = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -392,6 +341,7 @@ const DEF_DET_SEG_A = {
     'nomefav': {
         'type': 'S',
         'size': 30,
+        'cut': true,
         'required': true
     },
     'docfav': {
@@ -402,7 +352,7 @@ const DEF_DET_SEG_A = {
     'datapagto': {
         'type': 'N',
         'size': 8,
-        'default': DATAPAGTO
+        'required': true
     },
     'tipomoeda': {
         'type': 'S',
@@ -435,7 +385,7 @@ const DEF_DET_SEG_PIX = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -496,7 +446,7 @@ const DEF_DET_SEG_TRANSF = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -531,11 +481,6 @@ const DEF_DET_SEG_TRANSF = {
         'size': 14,
         'required': true
     },
-    'tipodoc': {
-        'type': 'N',
-        'size': 1,
-        'required': true
-    },
     'endlogr': {
         'type': 'S',
         'size': 30
@@ -567,7 +512,7 @@ const DEF_DET_SEG_TRANSF = {
     'datavencto': {
         'type': 'N',
         'size': 8,
-        'default': DATAPAGTO
+        'required': true
     },
     'valores': {
         'type': 'N',
@@ -594,7 +539,7 @@ const DEF_TRAILER_LOTE = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -636,7 +581,7 @@ const DEF_TRAILER_ARQUIVO = {
     'codbanco': {
         'type': 'N',
         'size': 3,
-        'default': 33
+        'default': BANCO
     },
     'lote': {
         'type': 'N',
@@ -669,7 +614,7 @@ const DEF_TRAILER_ARQUIVO = {
 class Arquivo
 {
     header = {
-        seq: parseInt(Date.now() / 86400000)
+        seq: parseInt(prompt("Numero da ultima Remessa:", 0)) + 1
     };
     lotes  = [];
     
@@ -742,15 +687,20 @@ class Registro
     constructor(linha) {
         this.reg.nomefav = linha[0].toUpperCase().replace(/\(.+$/, '').trim();
         this.reg.valorpagto = Number.fromMoney(linha[4]);
+        this.reg.datapagto = DATAPAGTO;
         let cpfCnpj = linha[6].replace(/[^\d]/g, '');
-        if (!/^\d{3,}$/.test(cpfCnpj)) {
-            throw 'CPF/CNPJ invalido ou nao encontrado!';
+        if (!cpfCnpj) {
+            throw 'CPF/CNPJ nao informado!';
         }
         this.reg.numdoc  = cpfCnpj.trim();
         this.reg.tipodoc = cpfCnpj.length <= 11 ? 1 : 2;
+        if (!validaCPFCNPJ(this.reg.numdoc, this.reg.tipodoc)) {
+            throw 'CPF/CNPJ invalido!';
+        }
         if (!this.carregaPix(linha) && !this.carregaBanco(linha)) {
             throw 'Impossivel carregar dados para PIX';
         }
+        this.reg.docfav = linha[13] ? linha[13].trim() : DATAPAGTO.substring(2);
     }
     
     get valor() {
@@ -763,7 +713,7 @@ class Registro
     
     toOutput(out, loteNum, regNum) {
         let segA = {
-            lote: loteNum, seq: regNum, docfav: 0,//TODO
+            lote: loteNum, seq: regNum
             //codcamara: this.tef ? 33 : 9
         };
         out.push(fixedRecord(DEF_DET_SEG_A, Object.assign(segA, this.reg)));
@@ -780,34 +730,36 @@ class Registro
     carregaPix(linha) {
         let chavePix, tipoChave;
         let numeros = linha[7].replace(/[^\d]/g, '');
+        linha[7] = linha[7].trim();
 
-        if (resolveBanco(linha[8]) == 33) {
+        /*if (resolveBanco(linha[8]) == 33) {
+            return false;
+        }*/
+        if (!linha[7]) {
             return false;
         }
-        
-        if (/^[1-9]{2}9\d{8}$/i.test(numeros)) {
+        if (validaTelefone(numeros)) {
             tipoChave = 1;
             chavePix = '+55' + numeros; // PIX Telefone
         }
-        else if (/@/i.test(linha[7])) {
+        else if (validaEmail(linha[7])) {
             tipoChave = 2;
-            chavePix = linha[7].toLowerCase().trim(); // PIX Email
+            chavePix = linha[7].toLowerCase(); // PIX Email
         }
         else if (/^[\da-f-]{35}$/i.test(linha[7])) {
             tipoChave = 4;
             chavePix = linha[7]; // PIX Chave aleatoria
         }
-        else if (/^\d{11,14}$/i.test(numeros) && this.reg.numdoc != numeros) {
+        else if (numeros && this.reg.numdoc != numeros) {
             throw 'O CPF/CNPJ do PIX deve ser o mesmo do titular';
         }
-        else if (/^\d{11,14}$/i.test(numeros) || /(CPF|CNPJ)/i.test(linha[7])) {
+        else if (numeros || /^(CPF|CNPJ)$/i.test(linha[7])) {
             tipoChave = 3;
             chavePix = this.reg.numdoc;// PIX CPF/CNPJ
         }
-        /*else if (/(CPF|CNPJ)/i.test(linha[7])) {
-            tipoChave = 3;
-            chavePix = this.reg.numdoc;// PIX CPF/CNPJ
-        }*/
+        else if (linha[7]) {
+            throw 'Chave PIX invalida. Se nao tem, deixe em branco';
+        }
         else {
             return false;
         }
@@ -825,10 +777,14 @@ class Registro
         }
         
         let m = linha[9].match(/^(.{1,4})(\-?.)?$/i);
-        this.reg.agenciafav = m[1];
-        this.reg['dv-agenciafav'] = m[2] ? m[2].replace(/[^\d]/g, '') : '';
+        if (!m[1]) {
+            throw 'Agencia do favorecido invalida';
+        }
         
         m = linha[10].match(/(.+?)\-?(.)$/i);
+        if (!m[2]) {
+            throw 'Conta do favorecido invalida';
+        }
         this.reg.ccfav = m[1];
         this.reg['dv-ccfav'] = m[2];
         
@@ -898,19 +854,15 @@ function processa()
     document.getElementById('output').value = ret;
 }
 
-function download()
+function download2()
 {
     let content = document.getElementById('output').value;
     if (!/^033/.test(content)) {
         alert('Conteudo invalido para download');
         return;
     }
-    const url = 'data:text/plain;base64,' + btoa(content);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = `remessa${HOJE}.txt`;
-    a.click();
+    let header = fixedLine(DEF_HEADER_ARQUIVO, content.substring(0, 240));
+    download(content, `remessa${header.seq}.txt`);
 }
 </script>
 <label>Cole as informacoes da planilha:
@@ -919,6 +871,6 @@ function download()
 <br><br>
 <label>Remessa:
 <textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
-<button onclick="download()">Download</button>
+<button onclick="download2()">Download</button>
 </body>
 </html>
