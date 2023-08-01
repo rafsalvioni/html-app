@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>NV Pagamento</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+</head>
+<body>
+<script type="text/javascript">
+Number.prototype.round = function(s=0)
+{
+    return Number(this.toFixed(s));
+}
+    
+Number.fromMoney = function(valor, neg=false)
+{
+    valor = valor.replace('.', '');
+    valor = valor.replace(',', '.');
+    valor = Number(valor);
+    if (neg && valor > 0.0) valor *= -1;
+    return valor;
+}
+Date.prototype.toDateBanco = function()
+{
+    let res = String(this.getDate()).padStart(2,'0') + String(this.getMonth() + 1).padStart(2,'0') + String(this.getFullYear());
+    return res;
+}
+Date.prototype.toTimeBanco = function()
+{
+    let res = this.toTimeString();
+    return res.substring(0, 8).replaceAll(':', '');
+}
+
+function fixedRecord(def, rec)
+{
+    let res = '';
+    for (let prop in def) {
+        let d = def[prop];
+        let val = rec[prop] ?? '';
+        
+        if (!(prop in rec)) {
+            if ('default' in d) {
+                val = d.default;
+            }
+            else if (d.required) {
+                throw `"${prop}" nao foi informado`;
+            }
+        }
+        
+        let pad  = ' ';
+        let left = false;
+        let pow  = 0;
+        switch (d.type) {
+            case 'F':
+                pow = 2;
+            case 'N':
+                pad  = '0';
+                left = true;
+                if (/[^\d]/.test(val)) {
+                    throw `"${prop}" deve ter somente numeros`;
+                }
+                val = parseInt(Math.round(val, pow) * Math.pow(10, pow));
+                break;
+            default:
+                val = String(val).replaceAll(/(\r\n|\r|\n)/g, "|");
+        }
+        val = String(val);
+        if ('size' in d && d.size > 0) {
+            val = val.substring(0, d.size);
+            val = left ? val.padStart(d.size, pad) : val.padEnd(d.size, pad);
+        }
+        res += val;
+    }
+    res += "\r\n";
+    return res;
+}
+
+//https://cms.santander.com.br/sites/WPS/documentos/arq-layout-pagamento-fornecedores-mai22/23-03-07_150124_pagamento_a_fornecedores_layout_cnab_240_v11.3.2_newpt.pdf
+const HOJE = (new Date()).toDateBanco();
+const HORA = (new Date()).toTimeBanco();
+const CNPJ = '32957361000117';
+const RAZAO_SOCIAL = 'NEUROVITALI ATENDIMENTO ESPECIALIZADO EM NEUROLOGIA LTDA';
+const AGENCIA = '3919';
+const CONTA_CORRENTE = '13006028';
+const DV_CONTA_CORRENTE = '4';
+const CONVENIO = '00333919004907264309';
+const DATAPAGTO = (function(){
+    let hoje = new Date();
+    if (hoje.getDate() > 20) {
+        if (hoje.getMonth() == 11) {
+            hoje.setFullYear(hoje.getFullYear() + 1);
+        }
+        hoje.setMonth(hoje.getMonth() + 1);
+    }
+    hoje.setDate(20);
+    return hoje.toDateBanco();
+})();
+
+const DEF_HEADER_ARQUIVO = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33 // Santander
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'default': 0
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 0 // Tipo Registro
+    },
+    'filler1': {
+        'size': 9
+    },
+    'tipoemp': {
+        'type': 'N',
+        'size': 1,
+        'default': 2 // CNPJ
+    },
+    'docemp': {
+        'type': 'N',
+        'size': 14,
+        'default': CNPJ
+    },
+    'convenio': {
+        'type': 'S',
+        'size': 20,
+        'default': CONVENIO
+    },
+    'agencia': {
+        'type': 'N',
+        'size': 5,
+        'default': AGENCIA
+    },
+    'dv-agencia': {
+        'type': 'S',
+        'size': 1
+    },
+    'cc': {
+        'type': 'N',
+        'size': 12,
+        'default': CONTA_CORRENTE
+    },
+    'dv-cc': {
+        'type': 'S',
+        'size': 1,
+        'default': DV_CONTA_CORRENTE
+    },
+    'dv-ag-cc': {
+        'type': 'S',
+        'size': 1
+    },
+    'nomeemp': {
+        'type': 'S',
+        'size': 30,
+        'default': RAZAO_SOCIAL
+    },
+    'nomebanco': {
+        'type': 'S',
+        'size': 30,
+        'default': 'BANCO SANTANDER'
+    },
+    'filler2': {
+        'size': 10
+    },
+    'codrem': {
+        'type': 'N',
+        'size': 1,
+        'default': 1 // Remessa
+    },
+    'data': {
+        'type': 'N',
+        'size': 8,
+        'default': HOJE
+    },
+    'hora': {
+        'type': 'N',
+        'size': 6,
+        'default': HORA
+    },
+    'seq': {
+        'type': 'N',
+        'size': 6,
+        'required': true
+    },
+    'layout': {
+        'type': 'N',
+        'size': 3,
+        'default': 60
+    },
+    'densidade': {
+        'type': 'N',
+        'size': 5
+    },
+    'reservado': {
+        'type': 'S',
+        'size': 59
+    },
+    'ocorrencias': {
+        'type': 'S',
+        'size': 10
+    },
+};
+
+const DEF_HEADER_LOTE = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'required': true
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 1
+    },
+    'tipoop': {
+        'type': 'S',
+        'size': 1,
+        'default': 'C' // Credito
+    },
+    'tiposerv': {
+        'type': 'N',
+        'size': 2,
+        'default': 20 // Pagto Fornecedor
+    },
+    'forma': {
+        'type': 'N',
+        'size': 2,
+        'default': 45 // 45- PIX, 01- Credito CC
+    },
+    'versao_lote': {
+        'type': 'N',
+        'size': 3,
+        'default': 31
+    },
+    'filler1': {
+        'size': 1
+    },
+    'tipoemp': {
+        'type': 'N',
+        'size': 1,
+        'default': 2 // CNPJ
+    },
+    'docemp': {
+        'type': 'N',
+        'size': 14,
+        'default': CNPJ
+    },
+    'convenio': {
+        'type': 'S',
+        'size': 20,
+        'default': CONVENIO
+    },
+    'agencia': {
+        'type': 'N',
+        'size': 5,
+        'default': AGENCIA
+    },
+    'dv-agencia': {
+        'type': 'S',
+        'size': 1
+    },
+    'cc': {
+        'type': 'N',
+        'size': 12,
+        'default': CONTA_CORRENTE
+    },
+    'dv-cc': {
+        'type': 'S',
+        'size': 1,
+        'default': DV_CONTA_CORRENTE
+    },
+    'dv-ag-cc': {
+        'type': 'S',
+        'size': 1
+    },
+    'nomeemp': {
+        'type': 'S',
+        'size': 30,
+        'default': RAZAO_SOCIAL
+    },
+    'info1': {
+        'type': 'S',
+        'size': 40
+    },
+    'endereco': {
+        'type': 'S',
+        'size': 30
+    },
+    'endnumero': {
+        'type': 'N',
+        'size': 5
+    },
+    'endcompl': {
+        'type': 'S',
+        'size': 15
+    },
+    'endcidade': {
+        'type': 'S',
+        'size': 20
+    },
+    'endcep': {
+        'type': 'N',
+        'size': 8
+    },
+    'enduf': {
+        'type': 'S',
+        'size': 2
+    },
+    'filler2': {
+        'size': 18
+    }
+};
+
+const DEF_DET_SEG_A = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'required': true
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 3
+    },
+    'seq': {
+        'type': 'N',
+        'size': 5,
+        'required': true
+    },
+    'codseg': {
+        'type': 'S',
+        'size': 1,
+        'default': 'A'
+    },
+    'tipomov': {
+        'type': 'N',
+        'size': 1,
+        'default': 0 //  Inclusao
+    },
+    'instrumov': {
+        'type': 'N',
+        'size': 2,
+        //'default': 9 //  Inclusao pendente autorizacao
+        'default': 0 //  Inclusao liberada
+    },
+    'codcamara': {
+        'type': 'N',
+        'size': 3,
+        'default': 9 // PIX
+    },
+    'codbancofav': {
+        'type': 'N',
+        'size': 3,
+        'default': 0 // PIX nao precisa
+    },
+    'agenciafav': {
+        'type': 'N',
+        'size': 5,
+        'default': 0 // PIX nao precisa
+    },
+    'dv-agenciafav': {
+        'type': 'S',
+        'size': 1
+    },
+    'ccfav': {
+        'type': 'N',
+        'size': 12,
+        'default': 0 // PIX nao precisa
+    },
+    'dv-ccfav': {
+        'type': 'S',
+        'size': 1
+    },
+    'dv-ag-cc': {
+        'type': 'S',
+        'size': 1
+    },
+    'nomefav': {
+        'type': 'S',
+        'size': 30,
+        'required': true
+    },
+    'docfav': {
+        'type': 'S',
+        'size': 20,
+        'required': true
+    },
+    'datapagto': {
+        'type': 'N',
+        'size': 8,
+        'default': DATAPAGTO
+    },
+    'tipomoeda': {
+        'type': 'S',
+        'size': 3,
+        'default': 'BRL'
+    },
+    'qtdemoeda': {
+        'type': 'N',
+        'size': 15
+    },
+    'valorpagto': {
+        'type': 'F',
+        'size': 15,
+        'required': true
+    },
+    'numdocbanco': {
+        'type': 'S',
+        'size': 20
+    },
+    'dataretorno': {
+        'type': 'N',
+        'size': 23
+    },
+    'filler': {
+        'size': 63
+    },
+};
+
+const DEF_DET_SEG_PIX = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'required': true
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 3
+    },
+    'seq': {
+        'type': 'N',
+        'size': 5,
+        'required': true
+    },
+    'codseg': {
+        'type': 'S',
+        'size': 1,
+        'default': 'B'
+    },
+    'tipochave': {
+        'type': 'N',
+        'size': 2,
+        'default': 3 // 1- Telefone, 2- Email, 3- CPF/CNPJ, 4- Aleatoria, 5- Dados Bancarios
+    },
+    'reserva1': {
+        'size': 1
+    },
+    'tipodoc': {
+        'type': 'N',
+        'size': 1
+    },
+    'numdoc': {
+        'type': 'N',
+        'size': 14
+    },
+    'pixqr': {
+        'type': 'S',
+        'size': 35
+    },
+    'infopix': {
+        'type': 'S',
+        'size': 60
+    },
+    'chavepix': {
+        'type': 'S',
+        'size': 99,
+        'required': true
+    },
+    'filler1': {
+        'type': 'S',
+        'size': 14
+    },
+};
+
+const DEF_DET_SEG_TRANSF = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'required': true
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 3
+    },
+    'seq': {
+        'type': 'N',
+        'size': 5,
+        'required': true
+    },
+    'codseg': {
+        'type': 'S',
+        'size': 1,
+        'default': 'B'
+    },
+    'filler1': {
+        'size': 3
+    },
+    'tipodoc': {
+        'type': 'N',
+        'size': 1,
+        'required': true
+    },
+    'numdoc': {
+        'type': 'N',
+        'size': 14,
+        'required': true
+    },
+    'tipodoc': {
+        'type': 'N',
+        'size': 1,
+        'required': true
+    },
+    'endlogr': {
+        'type': 'S',
+        'size': 30
+    },
+    'endnumero': {
+        'type': 'N',
+        'size': 5
+    },
+    'endcompl': {
+        'type': 'S',
+        'size': 15
+    },
+    'endbairro': {
+        'type': 'S',
+        'size': 15
+    },
+    'endcidade': {
+        'type': 'S',
+        'size': 20
+    },
+    'endcep': {
+        'type': 'N',
+        'size': 8
+    },
+    'enduf': {
+        'type': 'S',
+        'size': 2
+    },
+    'datavencto': {
+        'type': 'N',
+        'size': 8,
+        'default': DATAPAGTO
+    },
+    'valores': {
+        'type': 'N',
+        'size': 79,
+    },
+    'filler2': {
+        'size': 11
+    },
+    'codhistorico': {
+        'type': 'N',
+        'size': 4,
+        'default': 2039
+    },
+    'emiteaviso': {
+        'type': 'N',
+        'size': 1
+    },
+    'filler3': {
+        'size': 10
+    },
+};
+
+const DEF_TRAILER_LOTE = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'required': true
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 5
+    },
+    'filler1': {
+        'size': 9
+    },
+    'qtde': {
+        'type': 'N',
+        'size': 6,
+        'required': true
+    },
+    'soma': {
+        'type': 'F',
+        'size': 18,
+        'required': true
+    },
+    'qtdemoeda': {
+        'type': 'N',
+        'size': 18
+    },
+    'avisodebito': {
+        'type': 'N',
+        'size': 6
+    },
+    'filler2': {
+        'size': 175
+    },
+};
+
+const DEF_TRAILER_ARQUIVO = {
+    'codbanco': {
+        'type': 'N',
+        'size': 3,
+        'default': 33
+    },
+    'lote': {
+        'type': 'N',
+        'size': 4,
+        'default': 9999
+    },
+    'tiporeg': {
+        'type': 'N',
+        'size': 1,
+        'default': 9
+    },
+    'filler1': {
+        'size': 9
+    },
+    'qtdelotes': {
+        'type': 'N',
+        'size': 6,
+        'required': true
+    },
+    'qtdereg': {
+        'type': 'N',
+        'size': 6,
+        'required': true
+    },
+    'filler2': {
+        'size': 211
+    },
+};
+
+class Arquivo
+{
+    header = {
+        seq: parseInt(Date.now() / 86400000)
+    };
+    lotes  = [];
+    
+    addLote(lote) {
+        if (!lote.vazio) {
+            this.lotes.push(lote);
+        }
+    }
+    
+    toOutput(debug = false) {
+        if (debug) {
+            return JSON.stringify(this, null, '  ');
+        }
+        let out = [];
+        out.push(fixedRecord(DEF_HEADER_ARQUIVO, this.header));
+        let registros = 0;
+        let num = 1;
+        for (let lote of this.lotes) {
+            registros += lote.numRegistros;
+            lote.toOutput(out, num++);
+        }
+        out.push(fixedRecord(DEF_TRAILER_ARQUIVO, {
+            qtdelotes: this.lotes.length,
+            qtdereg: registros + 2
+        }));
+        return out.join('');
+    }
+}
+
+class Lote
+{
+    lote = {
+        soma: 0
+    };
+    reg  = [];
+    
+    constructor(tef = false) {
+        this.lote.forma = tef ? 1 : 45;
+    }
+    
+    addReg(reg) {
+        this.reg.push(reg);
+        this.lote.soma += reg.valor;
+    }
+    
+    get numRegistros() {
+        return this.reg.length * 2 + 2;
+    }
+    
+    get vazio() {
+        return this.reg.length == 0;
+    }
+    
+    toOutput(out, loteNum) {
+        out.push(fixedRecord(DEF_HEADER_LOTE, {lote: loteNum}));
+        let num = 1;
+        for (let reg of this.reg) {
+            reg.toOutput(out, loteNum, num++);
+        }
+        out.push(fixedRecord(DEF_TRAILER_LOTE, {
+            lote: loteNum, qtde: this.numRegistros, soma: this.lote.soma
+        }));
+    }
+}
+
+class Registro
+{
+    reg = {};
+
+    constructor(linha) {
+        this.reg.nomefav = linha[0].toUpperCase().replace(/\(.+$/, '').trim();
+        this.reg.valorpagto = Number.fromMoney(linha[4]);
+        let cpfCnpj = linha[6].replace(/[^\d]/g, '');
+        if (!/^\d{3,}$/.test(cpfCnpj)) {
+            throw 'CPF/CNPJ invalido ou nao encontrado!';
+        }
+        this.reg.numdoc  = cpfCnpj.trim();
+        this.reg.tipodoc = cpfCnpj.length <= 11 ? 1 : 2;
+        if (!this.carregaPix(linha) && !this.carregaBanco(linha)) {
+            throw 'Impossivel carregar dados para PIX';
+        }
+    }
+    
+    get valor() {
+        return this.reg.valorpagto;
+    }
+    
+    get tef() {
+        return this.reg.codbancofav == 33;
+    }
+    
+    toOutput(out, loteNum, regNum) {
+        let segA = {
+            lote: loteNum, seq: regNum, docfav: 0,//TODO
+            //codcamara: this.tef ? 33 : 9
+        };
+        out.push(fixedRecord(DEF_DET_SEG_A, Object.assign(segA, this.reg)));
+        let segB = {
+            lote: loteNum, seq: regNum
+        };
+        out.push(fixedRecord(
+            //this.tef ? DEF_DET_SEG_TRANSF : DEF_DET_SEG_PIX,
+            DEF_DET_SEG_PIX,
+            Object.assign(segB, this.reg)
+        ));
+    }
+    
+    carregaPix(linha) {
+        let chavePix, tipoChave;
+        let numeros = linha[7].replace(/[^\d]/g, '');
+
+        if (resolveBanco(linha[8]) == 33) {
+            return false;
+        }
+        
+        if (/^[1-9]{2}9\d{8}$/i.test(numeros)) {
+            tipoChave = 1;
+            chavePix = '+55' + numeros; // PIX Telefone
+        }
+        else if (/@/i.test(linha[7])) {
+            tipoChave = 2;
+            chavePix = linha[7].toLowerCase().trim(); // PIX Email
+        }
+        else if (/^[\da-f-]{35}$/i.test(linha[7])) {
+            tipoChave = 4;
+            chavePix = linha[7]; // PIX Chave aleatoria
+        }
+        else if (/^\d{11,14}$/i.test(numeros) && this.reg.numdoc != numeros) {
+            throw 'O CPF/CNPJ do PIX deve ser o mesmo do titular';
+        }
+        else if (/^\d{11,14}$/i.test(numeros) || /(CPF|CNPJ)/i.test(linha[7])) {
+            tipoChave = 3;
+            chavePix = this.reg.numdoc;// PIX CPF/CNPJ
+        }
+        /*else if (/(CPF|CNPJ)/i.test(linha[7])) {
+            tipoChave = 3;
+            chavePix = this.reg.numdoc;// PIX CPF/CNPJ
+        }*/
+        else {
+            return false;
+        }
+        this.reg.chavepix  = chavePix.trim();
+        this.reg.tipochave = tipoChave;
+        return true;
+    }
+    
+    carregaBanco(linha) {
+        this.reg.tipochave = 5;
+        this.reg.chavepix = linha[11] && /poup/i.test(linha[11]) ? '02' : '01';
+        this.reg.codbancofav = resolveBanco(linha[8]);
+        if (this.reg.codbancofav == 0) {
+            throw `Banco "${linha[8]}" nao reconhecido`;
+        }
+        
+        let m = linha[9].match(/^(.{1,4})(\-?.)?$/i);
+        this.reg.agenciafav = m[1];
+        this.reg['dv-agenciafav'] = m[2] ? m[2].replace(/[^\d]/g, '') : '';
+        
+        m = linha[10].match(/(.+?)\-?(.)$/i);
+        this.reg.ccfav = m[1];
+        this.reg['dv-ccfav'] = m[2];
+        
+        return true;
+    }
+}
+
+function resolveBanco(nome) {
+    nome = nome.trim();
+    switch (true) {
+        case /^ita/i.test(nome):
+            return 341;
+        case /^brades/i.test(nome):
+            return 237;
+        case /^(caixa|cef)/i.test(nome):
+            return 104;
+        case /^santander/i.test(nome):
+            return 33;
+        case /^brasil/i.test(nome):
+            return 1;
+    }
+    return 0;
+}
+
+function geraRemessa(input)
+{
+    let linhas = input.trim().split(/\r?\n/);
+    //console.log(linhas);
+
+    const ARQUIVO = new Arquivo();
+    let LOTEPIX = new Lote();
+    let LOTETEF = new Lote(true);
+    for (let i = 0; i < linhas.length; i++) {
+        let linha = linhas[i].split("\t");
+        if (!linha[4]) {
+            continue; // Linha sem totalizador
+        }
+        try {
+            let REG = new Registro(linha);
+            if (REG.valor <= 0) {
+                console.log(`Linha ${i + 1} ignorada por valor zerado`);
+                continue;
+            }
+            //if (REG.tef) {
+            //    LOTETEF.addReg(REG);
+            //} else {
+                LOTEPIX.addReg(REG);
+            //}
+        } catch (e) {
+            throw (`${e} - Linha ${i + 1}`);
+        }
+    };
+    ARQUIVO.addLote(LOTETEF);
+    ARQUIVO.addLote(LOTEPIX);
+    return ARQUIVO.toOutput(confirm("Debug?"));
+}
+
+function processa()
+{
+    let input = document.getElementById('input').value;
+    let ret;
+    try {
+        ret = geraRemessa(input);
+    } catch (e) {
+        ret = `ERRO: ${e}`;
+    }
+    document.getElementById('output').value = ret;
+}
+
+function download()
+{
+    let content = document.getElementById('output').value;
+    if (!/^033/.test(content)) {
+        alert('Conteudo invalido para download');
+        return;
+    }
+    const url = 'data:text/plain;base64,' + btoa(content);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `remessa${HOJE}.txt`;
+    a.click();
+}
+</script>
+<label>Cole as informacoes da planilha:
+<textarea rows="10" style="width:100%" id="input" onchange="processa()"></textarea></label>
+<button onclick="processa()">Refazer</button>
+<br><br>
+<label>Remessa:
+<textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
+<button onclick="download()">Download</button>
+</body>
+</html>
