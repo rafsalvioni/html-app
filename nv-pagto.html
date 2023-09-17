@@ -31,15 +31,16 @@ const AGENCIA = '3919';
 const CONTA_CORRENTE = '13006028';
 const DV_CONTA_CORRENTE = '4';
 const CONVENIO = '00333919004907264309';
+const DIAPAGTO = 18;
 const DATAPAGTO = (function(){
     let hoje = new Date();
-    if (hoje.getDate() > 20) {
+    if (hoje.getDate() > DIAPAGTO) {
         if (hoje.getMonth() == 11) {
             hoje.setFullYear(hoje.getFullYear() + 1);
         }
         hoje.setMonth((hoje.getMonth() + 1) % 12);
     }
-    hoje.setDate(20);
+    hoje.setDate(DIAPAGTO);
     return hoje.toDateBanco();
 })();
 
