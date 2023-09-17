@@ -23,7 +23,7 @@ function fixedRecord(def, rec)
             case 'N':
                 pad  = '0';
                 left = true;
-                if (/[^\d]/.test(val)) {
+                if (isNaN(val)) {
                     throw `"${prop}" deve ser numerico`;
                 }
                 val  = parseInt(Number(val).round(pow) * Math.pow(10, pow));
