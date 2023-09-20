@@ -9,6 +9,19 @@
 <script type="text/javascript" src="js/proto.js"></script>
 <script type="text/javascript" src="js/flat.js"></script>
 <script type="text/javascript" src="js/validador.js"></script>
+<label>Dia do Pagto:
+<input type="number" min="1" max="30" id="dia"></label>
+<br>
+<label>N&ordm; Remessa:
+<input type="number" min="1" max="999999" id="remessa"></label>
+<br><br>
+<label>Cole as informacoes da planilha:
+<textarea rows="10" style="width:100%" id="input" onchange="processa()"></textarea></label>
+<button onclick="processa()">Refazer</button>
+<br><br>
+<label>Remessa:
+<textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
+<button onclick="download2()">Download</button>
 <script type="text/javascript">
 Date.prototype.toDateBanco = function()
 {
@@ -21,6 +34,18 @@ Date.prototype.toTimeBanco = function()
     return res.substring(0, 8).replaceAll(':', '');
 }
 
+function getDataPagto(dia) {
+    let hoje = new Date();
+    if (hoje.getDate() > dia) {
+        if (hoje.getMonth() == 11) {
+            hoje.setFullYear(hoje.getFullYear() + 1);
+        }
+        hoje.setMonth((hoje.getMonth() + 1) % 12);
+    }
+    hoje.setDate(dia);
+    return hoje.toDateBanco();
+}
+
 //https://cms.santander.com.br/sites/WPS/documentos/arq-layout-pagamento-fornecedores-mai22/23-03-07_150124_pagamento_a_fornecedores_layout_cnab_240_v11.3.2_newpt.pdf
 const HOJE = (new Date()).toDateBanco();
 const HORA = (new Date()).toTimeBanco();
@@ -31,18 +56,6 @@ const AGENCIA = '3919';
 const CONTA_CORRENTE = '13006028';
 const DV_CONTA_CORRENTE = '4';
 const CONVENIO = '00333919004907264309';
-const DIAPAGTO = 18;
-const DATAPAGTO = (function(){
-    let hoje = new Date();
-    if (hoje.getDate() > DIAPAGTO) {
-        if (hoje.getMonth() == 11) {
-            hoje.setFullYear(hoje.getFullYear() + 1);
-        }
-        hoje.setMonth((hoje.getMonth() + 1) % 12);
-    }
-    hoje.setDate(DIAPAGTO);
-    return hoje.toDateBanco();
-})();
 
 const DEF_HEADER_ARQUIVO = {
     'codbanco': {
@@ -614,10 +627,16 @@ const DEF_TRAILER_ARQUIVO = {
 
 class Arquivo
 {
-    header = {
-        seq: parseInt(prompt("Numero da ultima Remessa:", 0)) + 1
-    };
     lotes  = [];
+    
+    constructor(seq) {
+        if (!seq) {
+            throw 'Numero de remessa invalido';
+        }
+        this.header = {
+            seq: parseInt(seq)
+        };
+    }
     
     addLote(lote) {
         if (!lote.vazio) {
@@ -685,13 +704,16 @@ class Registro
 {
     reg = {};
 
-    constructor(linha) {
+    constructor(linha, diaPagto) {
         this.reg.nomefav = linha[0].toUpperCase().replace(/\(.+$/, '').trim();
         this.reg.valorpagto = Number.fromMoney(linha[4]);
-        this.reg.datapagto = DATAPAGTO;
+        this.reg.datapagto = getDataPagto(diaPagto);
         let cpfCnpj = linha[6].replace(/[^\d]/g, '');
         if (!cpfCnpj) {
             throw 'CPF/CNPJ nao informado!';
+        }
+        else if (diaPagto > 30) {
+            throw 'Dia do Pagto invalido';
         }
         this.reg.numdoc  = cpfCnpj.trim();
         this.reg.tipodoc = cpfCnpj.length <= 11 ? 1 : 2;
@@ -701,7 +723,7 @@ class Registro
         if (!this.carregaPix(linha) && !this.carregaBanco(linha)) {
             throw 'Impossivel carregar dados para PIX';
         }
-        this.reg.docfav = linha[13] ? linha[13].trim() : DATAPAGTO.substring(2);
+        this.reg.docfav = linha[13] ? linha[13].trim() : this.reg.datapagto.substring(2);
     }
     
     get valor() {
@@ -810,12 +832,21 @@ function resolveBanco(nome) {
     return 0;
 }
 
-function geraRemessa(input)
+const REMESSA = document.getElementById('remessa');
+if (localStorage['*REMESSA*']) {
+    REMESSA.value = localStorage['*REMESSA*'];
+}
+const DIA = document.getElementById('dia');
+DIA.value = (new Date()).getDate();
+
+const OUT = document.getElementById('output');
+
+function geraRemessa(input, remessa, diaPagto)
 {
     let linhas = input.trim().split(/\r?\n/);
     //console.log(linhas);
 
-    const ARQUIVO = new Arquivo();
+    const ARQUIVO = new Arquivo(remessa);
     let LOTEPIX = new Lote();
     let LOTETEF = new Lote(true);
     for (let i = 0; i < linhas.length; i++) {
@@ -824,7 +855,7 @@ function geraRemessa(input)
             continue; // Linha sem totalizador
         }
         try {
-            let REG = new Registro(linha);
+            let REG = new Registro(linha, diaPagto);
             if (REG.valor <= 0) {
                 console.log(`Linha ${i + 1} ignorada por valor zerado`);
                 continue;
@@ -845,33 +876,32 @@ function geraRemessa(input)
 
 function processa()
 {
+    let remessa = parseInt(REMESSA.value);
+    let diaPagto = parseInt(DIA.value);
     let input = document.getElementById('input').value;
     let ret;
     try {
-        ret = geraRemessa(input);
+        ret = geraRemessa(input, remessa, diaPagto);
     } catch (e) {
         ret = `ERRO: ${e}`;
     }
-    document.getElementById('output').value = ret;
+    OUT.value = ret;
 }
 
 function download2()
 {
-    let content = document.getElementById('output').value;
-    if (!/^033/.test(content)) {
+    if (!/^033/.test(OUT.value)) {
         alert('Conteudo invalido para download');
         return;
     }
-    let header = fixedLine(DEF_HEADER_ARQUIVO, content.substring(0, 240));
-    download(content, `remessa${header.seq}.txt`);
+    let seq = REMESSA.value;
+    download(OUT.value, `remessa${seq}.txt`);
+    if (confirm('Incrementar remessa?')) {
+        REMESSA.value = ++seq;
+        OUT.value = '';
+    }
+    localStorage['*REMESSA*'] = seq;
 }
 </script>
-<label>Cole as informacoes da planilha:
-<textarea rows="10" style="width:100%" id="input" onchange="processa()"></textarea></label>
-<button onclick="processa()">Refazer</button>
-<br><br>
-<label>Remessa:
-<textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
-<button onclick="download2()">Download</button>
 </body>
 </html>
