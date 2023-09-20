@@ -14,7 +14,8 @@ Number.fromMoney = function(valor, neg=false)
 
 function download(content, fileName)
 {
-    const url = 'data:text/plain;base64,' + btoa(content);
+    content = unescape(encodeURIComponent(content));
+    const url = 'data:text/plain;charset=utf-8;base64,' + btoa(content);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
