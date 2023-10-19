@@ -803,6 +803,7 @@ class Registro
         if (!m[1]) {
             throw 'Agencia do favorecido invalida';
         }
+        this.reg.agenciafav = m[1];
         
         m = linha[10].match(/(.+?)\-?(.)$/i);
         if (!m[2]) {
