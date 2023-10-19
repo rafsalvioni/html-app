@@ -6,20 +6,10 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 </head>
 <body>
+<script type="text/javascript" src="js/proto.js"></script>
+<script type="text/javascript" src="js/flat.js"></script>
+<script type="text/javascript" src="js/validador.js"></script>
 <script type="text/javascript">
-Number.prototype.round = function(s=0)
-{
-    return Number(this.toFixed(s));
-}
-    
-Number.fromMoney = function(valor, neg=false)
-{
-    valor = valor.replace('.', '');
-    valor = valor.replace(',', '.');
-    valor = Number(valor);
-    if (neg && valor > 0.0) valor *= -1;
-    return valor;
-}
 Date.hoje = function()
 {
     let dt = new Date();
@@ -27,49 +17,9 @@ Date.hoje = function()
     return res;
 }
 
-function fixedRecord(def, rec)
-{
-    let res = '';
-    for (let prop in def) {
-        let d = def[prop];
-        let val = rec[prop] ?? '';
-        
-        if (!(prop in rec)) {
-            if ('default' in d) {
-                val = d.default;
-            }
-            else if (d.required) {
-                throw `"${prop}" nao foi informado`;
-            }
-        }
-        
-        let pad  = ' ';
-        let left = false;
-        let pow  = 0;
-        switch (d.type) {
-            case 'F':
-                pow = 2;
-            case 'N':
-                pad  = '0';
-                left = true;
-                val  = parseInt(Number(val).round(pow) * Math.pow(10, pow));
-                break;
-            default:
-                val = String(val).replaceAll(/(\r\n|\r|\n)/g, "|");
-        }
-        val = String(val);
-        if ('size' in d && d.size > 0) {
-            if (val.length > d.size) {
-                throw `Valor de "${prop}" excedeu o tamanho`;
-            }
-            val = left ? val.padStart(d.size, pad) : val.padEnd(d.size, pad);
-            
-        }
-        res += val;
-    }
-    res += "\r\n";
-    return res;
-}
+const CCM = 69307342;
+const COD_SERVICO = 4626;
+const HOJE = Date.hoje();
 
 const DEF_HEADER = {
     'tiporeg': {
@@ -87,7 +37,7 @@ const DEF_HEADER = {
     'ccm': {
         'type': 'N',
         'size': 8,
-        'required': true
+        'default': CCM
     },
     'dtinicio': {
         'type': 'N',
@@ -148,7 +98,7 @@ const DEF_RPS = {
     'codservico': {
         'type': 'N',
         'size': 5,
-        'required': true
+        'default': COD_SERVICO
     },
     'aliquota': {
         'type': 'N',
@@ -251,9 +201,6 @@ const DEF_FOOTER = {
     },
 };
 
-const CCM = 69307342;
-const COD_SERVICO = 4626;
-const HOJE = Date.hoje();
 var NUMERO;
 
 function geraRPS(input)
@@ -269,7 +216,6 @@ function geraRPS(input)
 
     let output = [];
     let header = {
-        ccm: CCM,
         dtinicio: HOJE,
         dtfim: HOJE
     };
@@ -283,7 +229,6 @@ function geraRPS(input)
     for (let i = 0; i < linhas.length; i++) {
         let rps = {
             dtemissao: HOJE,
-            codservico: COD_SERVICO,
             numero: ++NUMERO
         };
         let campos = linhas[i].trim().split(/ *\t */);
@@ -292,6 +237,9 @@ function geraRPS(input)
             rps.indcpfcnpj = Number(campos[12].length > 11) + 1;
             rps.cpfcnpj = campos[12];
             rps.nome_tomador = (!!campos[13] ? campos[13] : campos[1]).replaceAll(/ {2,}/g, ' ');
+            if (!validaCPFCNPJ(campos[12], rps.indcpfcnpj)) {
+                throw `CPF/CNPJ invalido (Linha ${i + 1})`;
+            }
         }
         else {
             throw `CPF/CNPJ nao encontrado (Linha ${i + 1})`;
@@ -338,19 +286,14 @@ function processa()
     document.getElementById('output').value = ret;
 }
 
-function download()
+function download2()
 {
     let content = document.getElementById('output').value;
     if (!/^1/.test(content)) {
         alert('Conteudo invalido para download');
         return;
     }
-    const url = 'data:text/plain;base64,' + btoa(content);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = `rps_${HOJE}.txt`;
-    a.click();
+    download(content, `rps_${HOJE}.txt`);
 }
 </script>
 <label>Cole as informacoes da planilha:
@@ -359,6 +302,6 @@ function download()
 <br><br>
 <label>RPS:
 <textarea rows="20" style="width:100%" id="output" readonly></textarea></label>
-<button onclick="download()">Download</button>
+<button onclick="download2()">Download</button>
 </body>
 </html>
