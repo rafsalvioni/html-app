@@ -46,16 +46,17 @@ function getDataPagto(dia) {
     return hoje.toDateBanco();
 }
 
-//https://cms.santander.com.br/sites/WPS/documentos/arq-layout-pagamento-fornecedores-mai22/23-03-07_150124_pagamento_a_fornecedores_layout_cnab_240_v11.3.2_newpt.pdf
+//https://download.itau.com.br/bankline/sispag_cnab.pdf
 const HOJE = (new Date()).toDateBanco();
 const HORA = (new Date()).toTimeBanco();
 const CNPJ = '32957361000117';
 const RAZAO_SOCIAL = 'NEUROVITALI ATENDIMENTO ESPECIALIZADO EM NEUROLOGIA LTDA';
-const BANCO = 33;
-const AGENCIA = '3919';
-const CONTA_CORRENTE = '13006028';
-const DV_CONTA_CORRENTE = '4';
-const CONVENIO = '00333919004907264309';
+const BANCO = 341;
+const AGENCIA = '7111';
+const CONTA_CORRENTE = '98421';
+const DV_CONTA_CORRENTE = ''; // Itau usa DV da CC no DAC
+const DAC = '2';
+const CONVENIO = ''; // Itau nao tem
 
 const DEF_HEADER_ARQUIVO = {
     'codbanco': {
@@ -74,7 +75,12 @@ const DEF_HEADER_ARQUIVO = {
         'default': 0 // Tipo Registro
     },
     'filler1': {
-        'size': 9
+        'size': 6
+    },
+    'layout': {
+        'tipo': 'N',
+        'size': 3,
+        'default': 80
     },
     'tipoemp': {
         'type': 'N',
@@ -111,8 +117,9 @@ const DEF_HEADER_ARQUIVO = {
         'default': DV_CONTA_CORRENTE
     },
     'dv-ag-cc': {
-        'type': 'S',
-        'size': 1
+        'type': 'N',
+        'size': 1,
+        'default': DAC
     },
     'nomeemp': {
         'type': 'S',
@@ -123,7 +130,7 @@ const DEF_HEADER_ARQUIVO = {
     'nomebanco': {
         'type': 'S',
         'size': 30,
-        'default': 'BANCO SANTANDER'
+        'default': 'BANCO ITAU SA'
     },
     'filler2': {
         'size': 10
@@ -143,15 +150,9 @@ const DEF_HEADER_ARQUIVO = {
         'size': 6,
         'default': HORA
     },
-    'seq': {
+    'zeros': {
         'type': 'N',
-        'size': 6,
-        'required': true
-    },
-    'layout': {
-        'type': 'N',
-        'size': 3,
-        'default': 60
+        'size': 9
     },
     'densidade': {
         'type': 'N',
@@ -159,12 +160,8 @@ const DEF_HEADER_ARQUIVO = {
     },
     'reservado': {
         'type': 'S',
-        'size': 59
-    },
-    'ocorrencias': {
-        'type': 'S',
-        'size': 10
-    },
+        'size': 69
+    }
 };
 
 const DEF_HEADER_LOTE = {
@@ -201,7 +198,7 @@ const DEF_HEADER_LOTE = {
     'versao_lote': {
         'type': 'N',
         'size': 3,
-        'default': 31
+        'default': 40
     },
     'filler1': {
         'size': 1
@@ -241,8 +238,9 @@ const DEF_HEADER_LOTE = {
         'default': DV_CONTA_CORRENTE
     },
     'dv-ag-cc': {
-        'type': 'S',
-        'size': 1
+        'type': 'N',
+        'size': 1,
+        'default': DAC
     },
     'nomeemp': {
         'type': 'S',
@@ -311,14 +309,8 @@ const DEF_DET_SEG_A = {
     },
     'tipomov': {
         'type': 'N',
-        'size': 1,
+        'size': 3,
         'default': 0 //  Inclusao
-    },
-    'instrumov': {
-        'type': 'N',
-        'size': 2,
-        //'default': 9 //  Inclusao pendente autorizacao
-        'default': 0 //  Inclusao liberada
     },
     'codcamara': {
         'type': 'N',
@@ -330,27 +322,9 @@ const DEF_DET_SEG_A = {
         'size': 3,
         'default': 0 // PIX nao precisa
     },
-    'agenciafav': {
-        'type': 'N',
-        'size': 5,
-        'default': 0 // PIX nao precisa
-    },
-    'dv-agenciafav': {
+    'agenciaconta': {
         'type': 'S',
-        'size': 1
-    },
-    'ccfav': {
-        'type': 'N',
-        'size': 12,
-        'default': 0 // PIX nao precisa
-    },
-    'dv-ccfav': {
-        'type': 'S',
-        'size': 1
-    },
-    'dv-ag-cc': {
-        'type': 'S',
-        'size': 1
+        'size': 20
     },
     'nomefav': {
         'type': 'S',
@@ -371,27 +345,44 @@ const DEF_DET_SEG_A = {
     'tipomoeda': {
         'type': 'S',
         'size': 3,
-        'default': 'BRL'
+        'default': '009' // Real
     },
-    'qtdemoeda': {
+    'isbp': {
+        'type': 'S',
+        'size': 8
+    },
+    'tipotransf': {
+        'type': 'S',
+        'size': 2,
+        'default': '04' // Chave PIX
+    },
+    'filler1': {
         'type': 'N',
-        'size': 15
+        'size': 5
     },
     'valorpagto': {
         'type': 'F',
         'size': 15,
         'required': true
     },
-    'numdocbanco': {
+    'filler2': {
         'type': 'S',
         'size': 20
     },
-    'dataretorno': {
+    'filler3': {
         'type': 'N',
         'size': 23
     },
-    'filler': {
-        'size': 63
+    'filler4': {
+        'size': 20
+    },
+    'filler5': {
+        'type': 'N',
+        'size': 20
+    },
+    'filler6': {
+        'type': 'S',
+        'size': 23
     },
 };
 
@@ -424,66 +415,10 @@ const DEF_DET_SEG_PIX = {
     'tipochave': {
         'type': 'N',
         'size': 2,
-        'default': 3 // 1- Telefone, 2- Email, 3- CPF/CNPJ, 4- Aleatoria, 5- Dados Bancarios
+        'default': 3 // 1- Telefone, 2- Email, 3- CPF/CNPJ, 4- Aleatoria
     },
     'reserva1': {
         'size': 1
-    },
-    'tipodoc': {
-        'type': 'N',
-        'size': 1
-    },
-    'numdoc': {
-        'type': 'N',
-        'size': 14
-    },
-    'pixqr': {
-        'type': 'S',
-        'size': 35
-    },
-    'infopix': {
-        'type': 'S',
-        'size': 60
-    },
-    'chavepix': {
-        'type': 'S',
-        'size': 99,
-        'required': true
-    },
-    'filler1': {
-        'type': 'S',
-        'size': 14
-    },
-};
-
-const DEF_DET_SEG_TRANSF = {
-    'codbanco': {
-        'type': 'N',
-        'size': 3,
-        'default': BANCO
-    },
-    'lote': {
-        'type': 'N',
-        'size': 4,
-        'required': true
-    },
-    'tiporeg': {
-        'type': 'N',
-        'size': 1,
-        'default': 3
-    },
-    'seq': {
-        'type': 'N',
-        'size': 5,
-        'required': true
-    },
-    'codseg': {
-        'type': 'S',
-        'size': 1,
-        'default': 'B'
-    },
-    'filler1': {
-        'size': 3
     },
     'tipodoc': {
         'type': 'N',
@@ -495,57 +430,22 @@ const DEF_DET_SEG_TRANSF = {
         'size': 14,
         'required': true
     },
-    'endlogr': {
+    'txid': {
         'type': 'S',
         'size': 30
     },
-    'endnumero': {
+    'infopix': {
         'type': 'N',
-        'size': 5
+        'size': 65
     },
-    'endcompl': {
+    'chavepix': {
         'type': 'S',
-        'size': 15
-    },
-    'endbairro': {
-        'type': 'S',
-        'size': 15
-    },
-    'endcidade': {
-        'type': 'S',
-        'size': 20
-    },
-    'endcep': {
-        'type': 'N',
-        'size': 8
-    },
-    'enduf': {
-        'type': 'S',
-        'size': 2
-    },
-    'datavencto': {
-        'type': 'N',
-        'size': 8,
+        'size': 100,
         'required': true
     },
-    'valores': {
-        'type': 'N',
-        'size': 79,
-    },
-    'filler2': {
-        'size': 11
-    },
-    'codhistorico': {
-        'type': 'N',
-        'size': 4,
-        'default': 2039
-    },
-    'emiteaviso': {
-        'type': 'N',
-        'size': 1
-    },
-    'filler3': {
-        'size': 10
+    'filler1': {
+        'type': 'S',
+        'size': 13
     },
 };
 
@@ -578,16 +478,12 @@ const DEF_TRAILER_LOTE = {
         'size': 18,
         'required': true
     },
-    'qtdemoeda': {
+    'filler2': {
         'type': 'N',
         'size': 18
     },
-    'avisodebito': {
-        'type': 'N',
-        'size': 6
-    },
-    'filler2': {
-        'size': 175
+    'filler3': {
+        'size': 181
     },
 };
 
@@ -731,20 +627,18 @@ class Registro
     }
     
     get tef() {
-        return this.reg.codbancofav == 33;
+        return this.reg.codbancofav == 341;
     }
     
     toOutput(out, loteNum, regNum) {
         let segA = {
             lote: loteNum, seq: regNum
-            //codcamara: this.tef ? 33 : 9
         };
         out.push(fixedRecord(DEF_DET_SEG_A, Object.assign(segA, this.reg)));
         let segB = {
             lote: loteNum, seq: regNum
         };
         out.push(fixedRecord(
-            //this.tef ? DEF_DET_SEG_TRANSF : DEF_DET_SEG_PIX,
             DEF_DET_SEG_PIX,
             Object.assign(segB, this.reg)
         ));
@@ -786,14 +680,16 @@ class Registro
         else {
             return false;
         }
+        this.reg.tipotransf = '04'; // Chave Pix
         this.reg.chavepix  = chavePix.trim();
         this.reg.tipochave = tipoChave;
         return true;
     }
     
     carregaBanco(linha) {
-        this.reg.tipochave = 5;
-        this.reg.chavepix = linha[11] && /poup/i.test(linha[11]) ? '02' : '01';
+        this.reg.tipotransf = linha[11] && /poup/i.test(linha[11]) ? '03' : '01'; // CC=01, POUP=03
+        this.reg.chavepix = ' ';
+        this.reg.tipochave = '';
         this.reg.codbancofav = resolveBanco(linha[8]);
         if (this.reg.codbancofav == 0) {
             throw `Banco "${linha[8]}" nao reconhecido`;
@@ -803,14 +699,21 @@ class Registro
         if (!m[1]) {
             throw 'Agencia do favorecido invalida';
         }
-        this.reg.agenciafav = m[1];
+        const ag = m[1];
         
         m = linha[10].match(/(.+?)\-?(.)$/i);
         if (!m[2]) {
             throw 'Conta do favorecido invalida';
         }
-        this.reg.ccfav = m[1];
-        this.reg['dv-ccfav'] = m[2];
+        const conta = m[1];
+        const dac   = m[2];
+
+        if (/^(341|409)$/.test(this.reg.codbancofav)) {
+            this.reg.agenciaconta = `0${ag.padStart(4, '0')} 000000${conta.padStart(6, '0')} ${dac}`;
+        }
+        else {
+            this.reg.agenciaconta = `${ag.padStart(5, '0')} ${conta.padStart(12, '0')} ${dac}`;
+        }
         
         return true;
     }
@@ -882,7 +785,7 @@ function processa()
     let input = document.getElementById('input').value;
     let ret;
     try {
-        ret = geraRemessa(input, remessa, diaPagto);
+        ret = geraRemessa(input, remessa, diaPagto).normalize("NFD").replace(/\p{Diacritic}/gu, "");
     } catch (e) {
         ret = `ERRO: ${e}`;
     }
@@ -891,7 +794,7 @@ function processa()
 
 function download2()
 {
-    if (!/^033/.test(OUT.value)) {
+    if (!/^341/.test(OUT.value)) {
         alert('Conteudo invalido para download');
         return;
     }
