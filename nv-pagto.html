@@ -11,9 +11,6 @@
 <script type="text/javascript" src="js/validador.js"></script>
 <label>Dia do Pagto:
 <input type="number" min="1" max="30" id="dia"></label>
-<br>
-<label>N&ordm; Remessa:
-<input type="number" min="1" max="999999" id="remessa"></label>
 <br><br>
 <label>Cole as informacoes da planilha:
 <textarea rows="10" style="width:100%" id="input" onchange="processa()"></textarea></label>
@@ -78,7 +75,7 @@ const DEF_HEADER_ARQUIVO = {
         'size': 6
     },
     'layout': {
-        'tipo': 'N',
+        'type': 'N',
         'size': 3,
         'default': 80
     },
@@ -323,7 +320,7 @@ const DEF_DET_SEG_A = {
         'default': 0 // PIX nao precisa
     },
     'agenciaconta': {
-        'type': 'S',
+        'type': 'N',
         'size': 20
     },
     'nomefav': {
@@ -378,7 +375,12 @@ const DEF_DET_SEG_A = {
     },
     'filler5': {
         'type': 'N',
-        'size': 20
+        'size': 6
+    },
+    'nrinsc': {
+        'type': 'N',
+        'size': 14,
+        'required': true
     },
     'filler6': {
         'type': 'S',
@@ -525,12 +527,8 @@ class Arquivo
 {
     lotes  = [];
     
-    constructor(seq) {
-        if (!seq) {
-            throw 'Numero de remessa invalido';
-        }
+    constructor() {
         this.header = {
-            seq: parseInt(seq)
         };
     }
     
@@ -612,6 +610,7 @@ class Registro
             throw 'Dia do Pagto invalido';
         }
         this.reg.numdoc  = cpfCnpj.trim();
+        this.reg.nrinsc  = this.reg.numdoc;
         this.reg.tipodoc = cpfCnpj.length <= 11 ? 1 : 2;
         if (!validaCPFCNPJ(this.reg.numdoc, this.reg.tipodoc)) {
             throw 'CPF/CNPJ invalido!';
@@ -736,21 +735,17 @@ function resolveBanco(nome) {
     return 0;
 }
 
-const REMESSA = document.getElementById('remessa');
-if (localStorage['*REMESSA*']) {
-    REMESSA.value = localStorage['*REMESSA*'];
-}
 const DIA = document.getElementById('dia');
 DIA.value = (new Date()).getDate();
 
 const OUT = document.getElementById('output');
 
-function geraRemessa(input, remessa, diaPagto)
+function geraRemessa(input, diaPagto)
 {
     let linhas = input.trim().split(/\r?\n/);
     //console.log(linhas);
 
-    const ARQUIVO = new Arquivo(remessa);
+    const ARQUIVO = new Arquivo();
     let LOTEPIX = new Lote();
     let LOTETEF = new Lote(true);
     for (let i = 0; i < linhas.length; i++) {
@@ -780,12 +775,11 @@ function geraRemessa(input, remessa, diaPagto)
 
 function processa()
 {
-    let remessa = parseInt(REMESSA.value);
     let diaPagto = parseInt(DIA.value);
     let input = document.getElementById('input').value;
     let ret;
     try {
-        ret = geraRemessa(input, remessa, diaPagto).normalize("NFD").replace(/\p{Diacritic}/gu, "");
+        ret = geraRemessa(input, diaPagto).normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[^\x00-\x7F]/g, " ");
     } catch (e) {
         ret = `ERRO: ${e}`;
     }
@@ -798,13 +792,8 @@ function download2()
         alert('Conteudo invalido para download');
         return;
     }
-    let seq = REMESSA.value;
-    download(OUT.value, `remessa${seq}.txt`);
-    if (confirm('Incrementar remessa?')) {
-        REMESSA.value = ++seq;
-        OUT.value = '';
-    }
-    localStorage['*REMESSA*'] = seq;
+    let nome = HOJE.substr(6,2) + HOJE.substr(2,2) + HOJE.substr(0,2);
+    download(OUT.value, `r${nome}.txt`);
 }
 </script>
 </body>
