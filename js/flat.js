@@ -26,7 +26,7 @@ function fixedRecord(def, rec)
                 if (isNaN(val)) {
                     throw `"${prop}" deve ser numerico`;
                 }
-                val  = parseInt(Number(val).round(pow) * Math.pow(10, pow));
+                val  = Math.round(Number(val).round(pow) * Math.pow(10, pow));
                 break;
             default:
                 val = String(val).replaceAll(/(\r\n|\r|\n)/g, "|");
