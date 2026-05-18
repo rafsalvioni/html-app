@@ -662,7 +662,7 @@ class Registro
             tipoChave = 2;
             chavePix = linha[7].toLowerCase(); // PIX Email
         }
-        else if (/^[\da-f-]{35}$/i.test(linha[7])) {
+        else if (/^[\da-f-]{36}$/i.test(linha[7])) {
             tipoChave = 4;
             chavePix = linha[7]; // PIX Chave aleatoria
         }
